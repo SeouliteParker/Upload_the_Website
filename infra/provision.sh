@@ -112,7 +112,7 @@ else
   mkdir -p "$(dirname "$KEY_FILE")"
   aws ec2 create-key-pair --key-name "$KEY_NAME" --key-type ed25519 \
     --tag-specifications "$(tags key-pair key)" \
-    --query KeyMaterial --output text > "$KEY_FILE"
+    --query KeyMaterial --output text | tr -d '\r' > "$KEY_FILE"
   chmod 400 "$KEY_FILE"
   echo "개인 키 저장: $KEY_FILE (재발급 불가 — 안전하게 보관)"
 fi

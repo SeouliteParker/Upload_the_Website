@@ -10,8 +10,9 @@
 | 4 | IAM | `RunInstances` 호출 시 `UnauthorizedOperation` | 재현 절차와 판별법 정리. 배포 시 결과 기입 |
 | 5 | 배포 스크립트(Windows) | `RunInstances` 호출 시 `Unable to load paramfile file:///tmp/...: No such file or directory` | 해결. 실제 로그 기반 |
 | 6 | 배포 스크립트(키 페어) | 재배포 시 `InvalidKeyPair.NotFound` | 해결. 실제 로그 기반 |
+| 7 | SSH(Windows) | `Load key "...pem": invalid format` → `Permission denied (publickey)` | 해결. 실제 로그 기반 |
 
-> 1, 5, 6번은 이 저장소를 실제로 배포하면서 **실제로 발생한** 오류이고, 로그와 조치를 그대로 옮겼다.
+> 1, 5, 6, 7번은 이 저장소를 실제로 배포하면서 **실제로 발생한** 오류이고, 로그와 조치를 그대로 옮겼다.
 > 2~4번은 이 구성에서 가장 흔히 겪는 통신/권한 오류다. 원인을 일부러 만들어 재현하는 절차와 로그로 판별하는 방법을 적어 두었다.
 > 실제 AWS에서 재현했을 때 나온 출력과 스크린샷은 각 건의 `결과` 칸에 붙인다.
 
@@ -136,6 +137,19 @@ INSTANCE_TYPE=t3.small ./infra/provision.sh   # → UnauthorizedOperation (DenyN
 | **조치 내용** | `provision.sh` 6단계를 "로컬 `.pem` 존재 **그리고** `aws ec2 describe-key-pairs`로 AWS 쪽 존재 확인"을 모두 만족할 때만 재사용하도록 바꿨다. 둘 중 하나라도 어긋나면 기존 `.pem`을 `.bak`으로 옮기고 새 키 페어를 발급한다. `cleanup.sh`도 AWS 키 삭제 후 로컬 `.pem`이 남아 있으면 안내 메시지를 출력하도록 했다. |
 | **결과** | 수정 후 정리→재배포를 반복해도 매번 유효한 키 페어로 EC2가 정상 생성됐다. |
 | **재발 방지** | "로컬 파일이 있다 = AWS에도 있다"처럼 **로컬 상태로 원격 상태를 추정하지 않는다.** 재사용 전에 항상 원격에서 한 번 확인한다. `cleanup.sh`가 지운 리소스와 짝을 이루는 로컬 산출물(`.pem`, `infra/.state.env`)도 함께 안내한다. |
+
+---
+
+## 7. Windows에서 발급받은 `.pem`으로 SSH 접속 시 `invalid format`
+
+| 항목 | 내용 |
+|------|------|
+| **증상** | 배포는 성공하고 `curl http://<IP>/health`도 200이 나오는데, SSH만 실패.<br>`Load key "/c/Users/.../upload-the-website-key.pem": invalid format`<br>`ubuntu@<IP>: Permission denied (publickey).` |
+| **원인 가설** | ① 키 페어 자체가 인스턴스와 안 맞음(다른 키로 발급) ② PEM 파일 권한 문제 ③ Windows에서 `aws ec2 create-key-pair ... --output text > file`로 저장하는 과정에서 **줄바꿈이 CRLF(`\r\n`)로 저장**되어 OpenSSH의 PEM 파서가 형식을 인식하지 못함 |
+| **검증 방법** | HTTP는 정상이므로 EC2/네트워크(①과 무관한 계층)는 문제가 없다. SSH 클라이언트가 아예 "not a permission denied by server"가 아니라 "invalid format"이라며 **키를 읽는 단계에서** 실패했으므로 서버 인증 이전, 로컬 키 파일 문제로 좁혔다. `cat -A ~/.ssh/upload-the-website-key.pem \| head -1`로 줄 끝에 `^M`(캐리지 리턴)이 보이면 ③ 확정. (Windows에서 CLI가 표준출력을 텍스트 모드로 다룰 때 흔히 생긴다.) |
+| **조치 내용** | 즉시 조치: `tr -d '\r' < key.pem > key.pem.fixed && mv key.pem.fixed key.pem && chmod 400 key.pem`으로 CRLF를 제거.<br>근본 조치: `infra/provision.sh`의 키 저장 파이프라인에 `\| tr -d '\r'`을 추가해, 어느 OS에서 실행하든 항상 LF만 남긴 PEM 파일을 쓰도록 고쳤다. |
+| **결과** | 수정 후 같은 Windows(Git Bash) 환경에서 `ssh -i key.pem ubuntu@<IP>`가 정상 접속되고, `infra/verify-on-instance.sh` 점검도 통과했다. |
+| **재발 방지** | Windows에서 텍스트로 저장되는 민감한 바이너리성 산출물(PEM, 인증서 등)은 저장 직후 줄바꿈 형식을 검사하거나 강제로 LF로 통일한다. macOS/Linux에서만 되는지 확인하고 끝내지 않고, Windows 경로도 실제로 SSH까지 접속해본다. |
 
 ---
 
