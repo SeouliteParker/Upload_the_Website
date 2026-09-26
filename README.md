@@ -67,7 +67,9 @@ VPC로 네트워크를 격리하고, 보안 그룹과 IAM에 최소권한을 적
 ### 사전 준비
 
 - AWS CLI v2와 `cloud-mission-user` 자격 증명이 필요하다(`aws sts get-caller-identity`로 루트가 아닌지 확인).
-- Bash, `curl`, `base64`.
+- Bash, `curl`, `base64`. macOS 기본 터미널(zsh)과 Linux Bash 모두 그대로 지원한다.
+  Windows는 기본 PowerShell이 아니라 **Git Bash** 또는 **WSL**에서 실행한다.
+- 스크립트에 실행 권한이 없다면(`Permission denied`) `chmod +x infra/*.sh`를 한 번 실행한다.
 
 ### 자동 배포(CLI)
 
