@@ -1,0 +1,11 @@
+# 셸 스크립트는 어떤 OS에서 clone/checkout 하든 항상 LF를 유지한다.
+# Windows의 core.autocrlf=true 설정이 체크아웃 시 CRLF로 바꿔버리면
+# 이 스크립트를 EC2(Ubuntu)로 SSH 파이프해 실행할 때
+# "$'\r': command not found" / "syntax error near unexpected token" 로 깨진다.
+# (docs/troubleshooting.md #7-1 참고)
+*.sh text eol=lf
+*.conf text eol=lf
+*.html text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+Dockerfile text eol=lf
