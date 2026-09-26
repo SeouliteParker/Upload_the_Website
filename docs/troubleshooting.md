@@ -11,8 +11,9 @@
 | 5 | 배포 스크립트(Windows) | `RunInstances` 호출 시 `Unable to load paramfile file:///tmp/...: No such file or directory` | 해결. 실제 로그 기반 |
 | 6 | 배포 스크립트(키 페어) | 재배포 시 `InvalidKeyPair.NotFound` | 해결. 실제 로그 기반 |
 | 7 | SSH(Windows) | `Load key "...pem": invalid format` → `Permission denied (publickey)` | 해결. 실제 로그 기반 |
+| 8 | 배포 스크립트(Windows, Git 설정) | 원격 점검 스크립트가 `$'\r': command not found` / `syntax error` | 해결. 실제 로그 기반 |
 
-> 1, 5, 6, 7번은 이 저장소를 실제로 배포하면서 **실제로 발생한** 오류이고, 로그와 조치를 그대로 옮겼다.
+> 1, 5, 6, 7, 8번은 이 저장소를 실제로 배포하면서 **실제로 발생한** 오류이고, 로그와 조치를 그대로 옮겼다.
 > 2~4번은 이 구성에서 가장 흔히 겪는 통신/권한 오류다. 원인을 일부러 만들어 재현하는 절차와 로그로 판별하는 방법을 적어 두었다.
 > 실제 AWS에서 재현했을 때 나온 출력과 스크린샷은 각 건의 `결과` 칸에 붙인다.
 
@@ -150,6 +151,19 @@ INSTANCE_TYPE=t3.small ./infra/provision.sh   # → UnauthorizedOperation (DenyN
 | **조치 내용** | 즉시 조치: `tr -d '\r' < key.pem > key.pem.fixed && mv key.pem.fixed key.pem && chmod 400 key.pem`으로 CRLF를 제거.<br>근본 조치: `infra/provision.sh`의 키 저장 파이프라인에 `\| tr -d '\r'`을 추가해, 어느 OS에서 실행하든 항상 LF만 남긴 PEM 파일을 쓰도록 고쳤다. |
 | **결과** | 수정 후 같은 Windows(Git Bash) 환경에서 `ssh -i key.pem ubuntu@<IP>`가 정상 접속되고, `infra/verify-on-instance.sh` 점검도 통과했다. |
 | **재발 방지** | Windows에서 텍스트로 저장되는 민감한 바이너리성 산출물(PEM, 인증서 등)은 저장 직후 줄바꿈 형식을 검사하거나 강제로 LF로 통일한다. macOS/Linux에서만 되는지 확인하고 끝내지 않고, Windows 경로도 실제로 SSH까지 접속해본다. |
+
+---
+
+## 8. Windows에서 `verify-on-instance.sh`를 SSH로 실행하면 `$'\r': command not found`
+
+| 항목 | 내용 |
+|------|------|
+| **증상** | SSH 접속 자체는 성공(#7 해결 후)했는데, `ssh ... 'bash -s' < infra/verify-on-instance.sh` 실행 시 원격(Ubuntu)에서<br>`: invalid option name`, `bash: line 5: $'\r': command not found`, `` bash: line 7: syntax error near unexpected token `$'{\r'' `` |
+| **원인 가설** | ① 스크립트 문법 오류(저장소의 스크립트 자체가 깨짐) ② `ssh`가 stdin을 잘못 전달 ③ **Windows의 Git이 저장소를 체크아웃할 때 `core.autocrlf` 설정으로 `.sh` 파일 줄바꿈을 CRLF로 바꿔서**, 로컬(Git Bash)에서는 문제없이 보여도 리눅스 bash가 CRLF를 명령어 일부로 오해함 |
+| **검증 방법** | 같은 저장소를 macOS/Linux에서 clone 했을 때는 이 오류가 없었으므로 ①은 기각. `cat -A infra/verify-on-instance.sh \| head -3`으로 각 줄 끝에 `^M$`이 보이면 ③ 확정(정상이면 `$`만 있어야 함). `git config core.autocrlf` 값이 Windows 기본인 `true`였다. |
+| **조치 내용** | 즉시 조치(로컬 파일만 교정): `sed -i 's/\r$//' infra/verify-on-instance.sh` 후 재실행.<br>근본 조치: 저장소 루트에 `.gitattributes`를 추가해 `*.sh`, `*.conf` 등 텍스트 파일을 `eol=lf`로 강제했다. 이러면 OS의 `core.autocrlf` 설정과 무관하게 체크아웃 시 항상 LF로 받는다. 이미 CRLF로 받아둔 기존 클론은 `git add --renormalize . && git commit`으로 한 번 정규화해야 한다. |
+| **결과** | `.gitattributes` 적용 후 새로 clone(또는 `git add --renormalize .`)하면 Windows에서도 `verify-on-instance.sh`가 원격에서 정상 실행되어 모든 항목이 `[PASS]`로 나왔다. |
+| **재발 방지** | 여러 OS에서 실행되는(특히 "이 기기에서 만들어 다른 기기/원격으로 보내는") 텍스트 파일은 저장소 차원에서 `.gitattributes`로 줄바꿈을 고정한다. 로컬 git 설정(`core.autocrlf`)에 결과가 좌우되게 두지 않는다. |
 
 ---
 
