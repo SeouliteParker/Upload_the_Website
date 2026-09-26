@@ -98,9 +98,17 @@ aws ec2 describe-security-group-rules --filters "Name=group-id,Values=$SG_ID" \
   --query 'SecurityGroupRules[].[IsEgress,IpProtocol,FromPort,ToPort,CidrIpv4]' --output table
 
 log "6. Key Pair ($KEY_NAME)"
-if [[ -f "$KEY_FILE" ]]; then
-  echo "기존 키 파일 $KEY_FILE 이 있어 재사용합니다 (AWS 측 키 페어 이름도 동일해야 함)."
+# 로컬 .pem 파일이 있어도 AWS 쪽 키 페어가 실제로 존재하는지 먼저 확인한다.
+# (예: 이전 cleanup.sh 로 AWS 키는 삭제됐는데 로컬 .pem 파일만 남아있는 경우
+#  RunInstances 가 InvalidKeyPair.NotFound 로 실패하는 문제를 막는다.)
+if [[ -f "$KEY_FILE" ]] && aws ec2 describe-key-pairs --key-names "$KEY_NAME" >/dev/null 2>&1; then
+  echo "기존 키 파일 $KEY_FILE 과 AWS 측 키 페어 '$KEY_NAME' 이 모두 확인되어 재사용합니다."
 else
+  if [[ -f "$KEY_FILE" ]]; then
+    echo "로컬 키 파일은 있지만 AWS에 '$KEY_NAME' 키 페어가 없습니다. 새로 발급합니다." >&2
+    echo "  (이전 .pem 은 더 이상 유효하지 않으므로 백업 후 덮어씁니다: ${KEY_FILE}.bak)" >&2
+    mv "$KEY_FILE" "${KEY_FILE}.bak"
+  fi
   mkdir -p "$(dirname "$KEY_FILE")"
   aws ec2 create-key-pair --key-name "$KEY_NAME" --key-type ed25519 \
     --tag-specifications "$(tags key-pair key)" \

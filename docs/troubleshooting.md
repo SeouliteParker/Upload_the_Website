@@ -8,8 +8,10 @@
 | 2 | 네트워크(라우팅) | EC2는 running인데 외부에서 `http://<퍼블릭IP>` 타임아웃 | 재현 절차와 판별법 정리. 배포 시 결과 기입 |
 | 3 | 보안 그룹 | 어제 되던 SSH가 오늘 `Operation timed out` | 재현 절차와 판별법 정리. 배포 시 결과 기입 |
 | 4 | IAM | `RunInstances` 호출 시 `UnauthorizedOperation` | 재현 절차와 판별법 정리. 배포 시 결과 기입 |
+| 5 | 배포 스크립트(Windows) | `RunInstances` 호출 시 `Unable to load paramfile file:///tmp/...: No such file or directory` | 해결. 실제 로그 기반 |
+| 6 | 배포 스크립트(키 페어) | 재배포 시 `InvalidKeyPair.NotFound` | 해결. 실제 로그 기반 |
 
-> 1번은 배포 전에 로컬에서 Docker 이미지를 검증하다 **실제로 발생한** 오류이고, 아래 로그를 그대로 옮겼다.
+> 1, 5, 6번은 이 저장소를 실제로 배포하면서 **실제로 발생한** 오류이고, 로그와 조치를 그대로 옮겼다.
 > 2~4번은 이 구성에서 가장 흔히 겪는 통신/권한 오류다. 원인을 일부러 만들어 재현하는 절차와 로그로 판별하는 방법을 적어 두었다.
 > 실제 AWS에서 재현했을 때 나온 출력과 스크린샷은 각 건의 `결과` 칸에 붙인다.
 
@@ -108,6 +110,32 @@ aws ec2 associate-route-table --route-table-id "$RTB_ID" --subnet-id "$SUBNET_ID
 INSTANCE_TYPE=t3.small ./infra/provision.sh   # → UnauthorizedOperation (DenyNonFreeTierInstanceTypes)
 ./infra/cleanup.sh                            # 도중에 만들어진 VPC 등 정리
 ```
+
+---
+
+## 5. Windows에서 `RunInstances` 호출 시 `Unable to load paramfile ... No such file or directory`
+
+| 항목 | 내용 |
+|------|------|
+| **증상** | Windows의 Git Bash(VS Code 통합 터미널)에서 `./infra/provision.sh` 실행 시 8단계(EC2 생성)에서 실패.<br>`aws: [ERROR]: An error occurred (ParamValidation): Error parsing parameter '--user-data': Unable to load paramfile file:///tmp/tmp.p4y6SbT4fz: [Errno 2] No such file or directory` |
+| **원인 가설** | ① user-data 스크립트 자체를 못 만듦(사전 sed/base64 실패) ② `mktemp`이 만든 임시 파일을 스크립트가 조기에 지움 ③ Git Bash(MSYS)가 `file:///tmp/...` 안의 유닉스 경로를 **aws.exe(네이티브 Windows 바이너리)에 넘길 때 잘못 변환**해서, CLI가 실제 파일 위치와 다른 경로를 찾음 |
+| **검증 방법** | macOS/Linux(같은 스크립트, 같은 AWS 계정)에서는 동일 단계가 성공했으므로 스크립트 로직(①)은 기각했다. 에러 메시지의 파일 경로가 `mktemp`가 실제로 만든 경로와 달랐다(Git Bash에서 `mktemp` 결과를 직접 `ls`로 대조). Windows에서만, 그것도 `file://` 경로를 쓰는 지점에서만 재현되므로 ③으로 좁혔다. 이는 Git Bash의 "자동 경로 변환(automatic path conversion)"이 MSYS와 링크되지 않은 외부 프로그램에 인자를 넘길 때 유닉스 스타일 경로(`/tmp/...`)를 잘못 다루는, 잘 알려진 동작이다. |
+| **조치 내용** | `infra/provision.sh`에서 `--user-data file://$TMPFILE` 대신, 렌더링한 user-data 내용을 **셸 변수에 직접 담아 값으로 전달**하도록 바꿨다(`--user-data "$USER_DATA"`). 파일 경로를 아예 거치지 않으므로 OS별 경로 변환 문제와 무관해진다. |
+| **결과** | 수정 후 같은 Windows(Git Bash) 환경에서 8단계를 통과해 `InstanceId`를 정상 반환했다(다음 건인 #6과 이어짐). |
+| **재발 방지** | 로컬에서 (fake credentials로) `aws ec2 run-instances --user-data "$UD" --dry-run`을 실행해, 파라미터 파싱을 통과하고 인증 단계에서 실패하는지로 문법 오류를 사전에 구분하는 습관을 들인다. macOS/Linux에서만 검증하고 배포 스크립트를 완료 처리하지 않는다 — 이 미션 참여자 다수가 Windows를 쓰므로 Windows 실행 경로도 실제로 검증한다. |
+
+---
+
+## 6. 재배포 시 `InvalidKeyPair.NotFound`
+
+| 항목 | 내용 |
+|------|------|
+| **증상** | `./infra/cleanup.sh`로 한 번 정리한 뒤 `./infra/provision.sh`를 다시 실행하면 8단계에서<br>`An error occurred (InvalidKeyPair.NotFound) when calling the RunInstances operation: The key pair 'upload-the-website-key' does not exist` |
+| **원인 가설** | `provision.sh` 6단계는 로컬에 `~/.ssh/upload-the-website-key.pem` 파일이 **있기만 하면** AWS 쪽에도 같은 이름의 키 페어가 있다고 가정하고 새로 만들지 않는다. 그런데 `cleanup.sh`는 AWS 쪽 키 페어만 삭제하고 로컬 `.pem` 파일은 남겨 두므로, 정리 후 재배포하면 "로컬 파일은 있는데 AWS 키는 없는" 상태가 된다. |
+| **검증 방법** | `aws ec2 describe-key-pairs --key-names upload-the-website-key` 실행 → `InvalidKeyPair.NotFound` 확인(로컬 `.pem`은 여전히 존재). 스크립트의 재사용 조건이 로컬 파일 존재만 검사하고 AWS 쪽 존재는 검사하지 않았음을 코드로 확인. |
+| **조치 내용** | `provision.sh` 6단계를 "로컬 `.pem` 존재 **그리고** `aws ec2 describe-key-pairs`로 AWS 쪽 존재 확인"을 모두 만족할 때만 재사용하도록 바꿨다. 둘 중 하나라도 어긋나면 기존 `.pem`을 `.bak`으로 옮기고 새 키 페어를 발급한다. `cleanup.sh`도 AWS 키 삭제 후 로컬 `.pem`이 남아 있으면 안내 메시지를 출력하도록 했다. |
+| **결과** | 수정 후 정리→재배포를 반복해도 매번 유효한 키 페어로 EC2가 정상 생성됐다. |
+| **재발 방지** | "로컬 파일이 있다 = AWS에도 있다"처럼 **로컬 상태로 원격 상태를 추정하지 않는다.** 재사용 전에 항상 원격에서 한 번 확인한다. `cleanup.sh`가 지운 리소스와 짝을 이루는 로컬 산출물(`.pem`, `infra/.state.env`)도 함께 안내한다. |
 
 ---
 

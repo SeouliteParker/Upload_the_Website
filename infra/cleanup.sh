@@ -66,8 +66,14 @@ isset "${SUBNET_ID:-}" && run aws ec2 delete-subnet --subnet-id "$SUBNET_ID"
 log "7. VPC 삭제 (기본 RT/NACL/SG 는 VPC 와 함께 삭제됨)"
 isset "${VPC_ID:-}" && run aws ec2 delete-vpc --vpc-id "$VPC_ID"
 
-log "8. Key Pair 삭제 (로컬 .pem 은 직접 삭제하세요)"
+log "8. Key Pair 삭제"
 isset "${KEY_NAME:-}" && run aws ec2 delete-key-pair --key-name "$KEY_NAME"
+LOCAL_KEY_FILE="${KEY_FILE:-$HOME/.ssh/${KEY_NAME:-upload-the-website-key}.pem}"
+if [[ -f "$LOCAL_KEY_FILE" ]]; then
+  echo "AWS 키 페어는 삭제됐지만 로컬 개인 키가 남아 있습니다: $LOCAL_KEY_FILE"
+  echo "다음에 provision.sh 를 다시 실행할 때 자동으로 새 키로 교체되지만,"
+  echo "직접 지우려면: rm -f \"$LOCAL_KEY_FILE\""
+fi
 
 log "9. 잔여 리소스 확인 (모두 비어 있어야 정리 완료)"
 F="Name=tag:Project,Values=$PROJECT"
