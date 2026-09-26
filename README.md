@@ -109,21 +109,25 @@ ssh -i ~/.ssh/upload-the-website-key.pem ubuntu@<퍼블릭IP> 'bash -s' < infra/
 
 | 항목 | 값 |
 |------|----|
-| 퍼블릭 IP | `<배포 후 기입: 예 3.35.x.x>` |
-| 검증 URL | `http://<퍼블릭IP>/health` |
-| 검증 일시 | `<YYYY-MM-DD HH:MM KST>` |
+| 퍼블릭 IP | `54.180.157.90` |
+| 검증 URL | `http://54.180.157.90/health` |
+| 검증 일시 | 2026-09-26 17:13 KST |
 
-외부 PC(인스턴스 밖)에서 실행한다.
+외부 PC(인스턴스 밖, Windows/Git Bash)에서 실행했다.
 
 ```bash
-$ curl -i http://<퍼블릭IP>/health
+$ curl -i http://54.180.157.90/health
 HTTP/1.1 200 OK
 Server: nginx
+Date: Sat, 26 Sep 2026 08:13:46 GMT
 Content-Type: text/plain
 Content-Length: 3
+Connection: keep-alive
 
 OK
 ```
+
+브라우저로 `http://54.180.157.90` 접속해도 "Hello Cloud" 페이지가 정상 표시됨을 확인했다.
 
 증빙 스크린샷(`docs/screenshots/`):
 
