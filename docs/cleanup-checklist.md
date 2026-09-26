@@ -3,9 +3,14 @@
 실습 리소스는 **생성할 때부터 `Project=upload-the-website` 태그로 추적**한다. 정리는 **의존성 역순**으로 한다.
 자동 정리는 `./infra/cleanup.sh`로 하고, 아래 표의 "확인 명령"으로 하나씩 검증한 뒤 결과를 기입한다.
 
-- 정리 일시: `YYYY-MM-DD HH:MM (KST)`
+- 정리 일시: (아래 "최종 확인"에 기입 — 모든 검증이 끝난 뒤 마지막으로 한 번 더 실행한 결과 기준)
 - 리전: `ap-northeast-2`
 - 작업자(IAM 사용자): `cloud-mission-user`
+
+> **중간 정리 이력**: 외부 접속 검증 도중 한 번 `./infra/cleanup.sh`를 실행해 EC2/SG/RT/IGW/Subnet/VPC/Key Pair가
+> 모두 정상 삭제되는 것을 확인했다 (증빙: [`docs/screenshots/cleanup-terminal.png`](screenshots/cleanup-terminal.png)).
+> 이후 보안 그룹·라우팅 테이블 스크린샷을 남기기 위해 `./infra/provision.sh`로 재배포했으므로,
+> 아래 체크리스트는 **모든 작업이 끝난 뒤 마지막으로 한 번 더 실행한 결과**를 기준으로 채운다.
 
 ## 왜 이 순서인가
 

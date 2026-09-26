@@ -1,15 +1,15 @@
 # 스크린샷
 
-배포 후 아래 파일명으로 캡처해 이 폴더에 넣는다. (퍼블릭 IP 외 계정 ID나 액세스 키가 보이지 않게 가린다.)
+메인 [`README.md`의 "스크린샷" 섹션](../../README.md#스크린샷)에 미리보기와 함께 정리되어 있다. 이 폴더에는 원본 파일만 둔다.
 
-| 파일 | 내용 | 필수 |
+| 파일 | 내용 | 상태 |
 |------|------|------|
-| `health-200.png` | 외부 PC에서 실행한 `curl -i http://<IP>/health` → 200 OK | ✅ |
-| `browser.png` | 브라우저로 `http://<IP>` 접속한 화면 | |
-| `verify-on-instance.png` | `infra/verify-on-instance.sh` 결과 (PASS) | |
-| `security-group.png` | SG 인바운드 규칙 | |
-| `route-table.png` | RT 경로와 서브넷 연결 | |
-| `docker-ps.png` | (보너스 2) `docker ps`에서 컨테이너 Up | 보너스 ✅ |
-| `docker-external.png` | (보너스 2) 외부에서 `/health` 호출 결과 | 보너스 ✅ |
-| `cleanup-ec2.png` / `cleanup-vpc.png` | 정리 후 리소스 목록 | |
-| `billing.png` | (선택) Billing 대시보드 | |
+| `browser.png` | 브라우저로 `http://<IP>` 접속, "Hello Cloud" 페이지 정상 표시 (외부 접속 검증 A) | ✅ |
+| `health-200.png` | `curl -i http://<IP>/health` → `200 OK` / `OK` (외부 접속 검증 B, 선택 방식) | ✅ |
+| `verify-on-instance.png` | `infra/verify-on-instance.sh` 실행 결과, PASS=5 FAIL=0 | ✅ |
+| `security-group.png` | Security Group 인바운드 규칙(80: 0.0.0.0/0, 22: 내 IP/32) | ✅ |
+| `route-table.png` | Route Table 경로(`0.0.0.0/0 → igw`, `10.0.0.0/16 → local`) | ✅ |
+| `cleanup-terminal.png` | `infra/cleanup.sh` 실행 로그 및 잔여 리소스 확인 결과 | ✅ |
+| `docker-ps.png` | (보너스 2) `docker ps`에서 컨테이너 `Up` 상태 | 선택 |
+| `docker-external.png` | (보너스 2) 외부에서 `/health` 호출 결과 | 선택 |
+| `billing.png` | (선택) Billing 대시보드에서 과금 항목 없음 확인 | 선택 |

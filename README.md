@@ -10,7 +10,7 @@ VPC로 네트워크를 격리하고, 보안 그룹과 IAM에 최소권한을 적
 | 결과물 | 위치 |
 |--------|------|
 | 아키텍처 다이어그램 | [`docs/architecture.png`](docs/architecture.png) (원본 [`architecture.svg`](docs/architecture.svg)) |
-| 외부 접속 증빙 | 이 문서의 [외부 접속 검증](#외부-접속-검증) + [`docs/screenshots/`](docs/screenshots/) |
+| 외부 접속 증빙 | 이 문서의 [외부 접속 검증](#외부-접속-검증) + [스크린샷](#스크린샷) ([`docs/screenshots/`](docs/screenshots/)) |
 | 트러블슈팅 보고서 | [`docs/troubleshooting.md`](docs/troubleshooting.md) |
 | 리소스 정리 체크리스트 | [`docs/cleanup-checklist.md`](docs/cleanup-checklist.md) |
 
@@ -129,15 +129,20 @@ OK
 
 브라우저로 `http://54.180.157.90` 접속해도 "Hello Cloud" 페이지가 정상 표시됨을 확인했다.
 
-증빙 스크린샷(`docs/screenshots/`):
+증빙 스크린샷은 [`docs/screenshots/`](docs/screenshots/)에 있다. 전체 목록과 미리보기는 아래 [스크린샷](#스크린샷) 섹션 참고.
 
-| 파일 | 내용 |
-|------|------|
-| `health-200.png` | 외부 PC 터미널에서 실행한 `curl -i http://<IP>/health` 결과 |
-| `browser.png` | (참고) 브라우저로 `http://<IP>` 접속한 화면 |
-| `verify-on-instance.png` | 인스턴스 내부 점검 스크립트 PASS 결과 |
-| `security-group.png` | SG 인바운드 규칙(80: 0.0.0.0/0, 22: 내 IP/32) |
-| `route-table.png` | RT 경로(`0.0.0.0/0 → igw`)와 서브넷 연결 |
+## 스크린샷
+
+전체 파일은 [`docs/screenshots/`](docs/screenshots/)에 있다.
+
+| | |
+|---|---|
+| **외부 접속 — 브라우저 (A)**<br>[`browser.png`](docs/screenshots/browser.png)<br>`http://54.180.157.90` 접속, "Hello Cloud" 페이지 정상 표시 | **외부 접속 — 헬스체크 (B, 선택 방식)**<br>[`health-200.png`](docs/screenshots/health-200.png)<br>`curl -i http://54.180.157.90/health` → `200 OK` / `OK` |
+| ![browser](docs/screenshots/browser.png) | ![health check](docs/screenshots/health-200.png) |
+| **인스턴스 내부 점검**<br>[`verify-on-instance.png`](docs/screenshots/verify-on-instance.png)<br>`infra/verify-on-instance.sh` 실행 결과, 5개 항목 전부 `PASS` | **Security Group 인바운드 규칙**<br>[`security-group.png`](docs/screenshots/security-group.png)<br>HTTP 80은 `0.0.0.0/0`, SSH 22는 내 IP `/32`만 허용 |
+| ![verify on instance](docs/screenshots/verify-on-instance.png) | ![security group](docs/screenshots/security-group.png) |
+| **Route Table 경로**<br>[`route-table.png`](docs/screenshots/route-table.png)<br>`0.0.0.0/0 → igw-...`(활성), `10.0.0.0/16 → local` | **리소스 정리(cleanup.sh) 실행 로그**<br>[`cleanup-terminal.png`](docs/screenshots/cleanup-terminal.png)<br>EC2/EBS/EIP/NAT/IGW/VPC 잔여 리소스 확인 결과 |
+| ![route table](docs/screenshots/route-table.png) | ![cleanup terminal](docs/screenshots/cleanup-terminal.png) |
 
 ## 보너스 2: Docker 컨테이너 배포
 
