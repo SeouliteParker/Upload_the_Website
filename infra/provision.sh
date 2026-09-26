@@ -110,13 +110,14 @@ else
 fi
 
 log "7. User Data 생성 (MODE=$MODE)"
-USER_DATA="$(mktemp)"
-trap 'rm -f "$USER_DATA"' EXIT
+# 임시 파일 + file:// 대신 내용을 변수로 직접 만든다. Windows Git Bash(MSYS)가
+# /tmp 경로를 aws.exe(네이티브 윈도우 바이너리)에 잘못 변환해 "No such file or
+# directory" 오류가 나는 문제를 피하기 위함 (docs/troubleshooting.md 참고).
 b64() { base64 < "$1" | tr -d '\n'; }
-sed -e "s|__INDEX_HTML_B64__|$(b64 "$ROOT_DIR/app/index.html")|" \
+USER_DATA="$(sed -e "s|__INDEX_HTML_B64__|$(b64 "$ROOT_DIR/app/index.html")|" \
     -e "s|__NGINX_CONF_B64__|$(b64 "$ROOT_DIR/app/nginx.conf")|" \
     -e "s|__DOCKERFILE_B64__|$(b64 "$ROOT_DIR/docker/Dockerfile")|" \
-    "$ROOT_DIR/infra/user-data-${MODE}.sh" > "$USER_DATA"
+    "$ROOT_DIR/infra/user-data-${MODE}.sh")"
 
 log "8. EC2 인스턴스 ($INSTANCE_TYPE, Ubuntu 24.04 LTS, gp3 8GiB)"
 INSTANCE_ID=$(aws ec2 run-instances \
@@ -127,7 +128,7 @@ INSTANCE_ID=$(aws ec2 run-instances \
   --security-group-ids "$SG_ID" \
   --block-device-mappings '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":8,"VolumeType":"gp3","DeleteOnTermination":true}}]' \
   --metadata-options "HttpTokens=required,HttpEndpoint=enabled" \
-  --user-data "file://$USER_DATA" \
+  --user-data "$USER_DATA" \
   --tag-specifications "$(tags instance web)" "$(tags volume root)" \
   --query 'Instances[0].InstanceId' --output text)
 save INSTANCE_ID "$INSTANCE_ID"
