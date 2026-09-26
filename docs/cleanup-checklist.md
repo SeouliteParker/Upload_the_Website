@@ -3,14 +3,14 @@
 실습 리소스는 **생성할 때부터 `Project=upload-the-website` 태그로 추적**한다. 정리는 **의존성 역순**으로 한다.
 자동 정리는 `./infra/cleanup.sh`로 하고, 아래 표의 "확인 명령"으로 하나씩 검증한 뒤 결과를 기입한다.
 
-- 정리 일시: (아래 "최종 확인"에 기입 — 모든 검증이 끝난 뒤 마지막으로 한 번 더 실행한 결과 기준)
+- 정리 일시: 2026-09-26 17:36 KST
 - 리전: `ap-northeast-2`
 - 작업자(IAM 사용자): `cloud-mission-user`
 
-> **중간 정리 이력**: 외부 접속 검증 도중 한 번 `./infra/cleanup.sh`를 실행해 EC2/SG/RT/IGW/Subnet/VPC/Key Pair가
-> 모두 정상 삭제되는 것을 확인했다 (증빙: [`docs/screenshots/cleanup-terminal.png`](screenshots/cleanup-terminal.png)).
-> 이후 보안 그룹·라우팅 테이블 스크린샷을 남기기 위해 `./infra/provision.sh`로 재배포했으므로,
-> 아래 체크리스트는 **모든 작업이 끝난 뒤 마지막으로 한 번 더 실행한 결과**를 기준으로 채운다.
+> **정리 이력**: 외부 접속 검증 도중 한 번 `./infra/cleanup.sh`를 실행해 정리가 정상 동작함을 확인했고,
+> 이후 보안 그룹·라우팅 테이블 콘솔 스크린샷을 남기기 위해 `./infra/provision.sh`로 재배포했다.
+> 모든 검증이 끝난 뒤 **최종적으로 `./infra/cleanup.sh`를 한 번 더 실행**했고, 아래 체크리스트는
+> 그 최종 실행 결과를 기준으로 한다 (증빙: [`docs/screenshots/cleanup-terminal.png`](screenshots/cleanup-terminal.png)).
 
 ## 왜 이 순서인가
 
@@ -28,15 +28,15 @@ EC2 종료 ─▶ (루트 EBS 자동 삭제) ─▶ EIP 해제 ─▶ SG 삭제 
 
 | # | 리소스 | 완료 기준 | 확인 명령 | 결과 |
 |---|--------|-----------|-----------|------|
-| 1 | EC2 인스턴스 | 상태 `terminated` | `aws ec2 describe-instances --filters Name=tag:Project,Values=upload-the-website --query 'Reservations[].Instances[].[InstanceId,State.Name]' --output table` | ☐ |
-| 2 | EBS 볼륨(미사용 포함) | 프로젝트 볼륨 0개, `available` 볼륨 0개 | `aws ec2 describe-volumes --query 'Volumes[].[VolumeId,State,Size]' --output table` | ☐ |
-| 3 | Elastic IP | 할당된 주소 0개(할당했다면 Release 완료) | `aws ec2 describe-addresses --output table` | ☐ |
-| 4 | Security Group | `upload-the-website-web-sg` 없음 | `aws ec2 describe-security-groups --filters Name=tag:Project,Values=upload-the-website` | ☐ |
-| 5 | Route Table | 퍼블릭 RT 없음 | `aws ec2 describe-route-tables --filters Name=tag:Project,Values=upload-the-website` | ☐ |
-| 6 | Internet Gateway | Detach 후 삭제되어 조회 결과 없음 | `aws ec2 describe-internet-gateways --filters Name=tag:Project,Values=upload-the-website` | ☐ |
-| 7 | Subnet | 조회 결과 없음 | `aws ec2 describe-subnets --filters Name=tag:Project,Values=upload-the-website` | ☐ |
-| 8 | VPC | 조회 결과 없음 | `aws ec2 describe-vpcs --filters Name=tag:Project,Values=upload-the-website` | ☐ |
-| 9 | Key Pair | AWS 측 키 삭제, 로컬 `.pem` 파기 | `aws ec2 describe-key-pairs --key-names upload-the-website-key` → NotFound | ☐ |
+| 1 | EC2 인스턴스 | 상태 `terminated` | `aws ec2 describe-instances --filters Name=tag:Project,Values=upload-the-website --query 'Reservations[].Instances[].[InstanceId,State.Name]' --output table` | ✅ terminated (`i-03327aa8066558e4e`) |
+| 2 | EBS 볼륨(미사용 포함) | 프로젝트 볼륨 0개, `available` 볼륨 0개 | `aws ec2 describe-volumes --query 'Volumes[].[VolumeId,State,Size]' --output table` | ✅ 루트 볼륨 `DeleteOnTermination=true`로 EC2와 함께 자동 삭제, `available` 볼륨 0개 |
+| 3 | Elastic IP | 할당된 주소 0개(할당했다면 Release 완료) | `aws ec2 describe-addresses --output table` | ✅ 0개 (EIP를 애초에 할당하지 않음 — 인스턴스 기본 퍼블릭 IP만 사용) |
+| 4 | Security Group | `upload-the-website-web-sg` 없음 | `aws ec2 describe-security-groups --filters Name=tag:Project,Values=upload-the-website` | ✅ 삭제됨 (`sg-00bd8ec193ee34990`) |
+| 5 | Route Table | 퍼블릭 RT 없음 | `aws ec2 describe-route-tables --filters Name=tag:Project,Values=upload-the-website` | ✅ 연결 해제 후 삭제됨 (`rtb-0ea12adbd689c6f61`) |
+| 6 | Internet Gateway | Detach 후 삭제되어 조회 결과 없음 | `aws ec2 describe-internet-gateways --filters Name=tag:Project,Values=upload-the-website` | ✅ Detach 후 삭제됨 (`igw-05d960b59b7a177bf`) |
+| 7 | Subnet | 조회 결과 없음 | `aws ec2 describe-subnets --filters Name=tag:Project,Values=upload-the-website` | ✅ 삭제됨 (`subnet-03bdc8f29f6d70012`) |
+| 8 | VPC | 조회 결과 없음 | `aws ec2 describe-vpcs --filters Name=tag:Project,Values=upload-the-website` | ✅ 삭제됨 (`vpc-01dc86e772ca679aa`) |
+| 9 | Key Pair | AWS 측 키 삭제, 로컬 `.pem` 파기 | `aws ec2 describe-key-pairs --key-names upload-the-website-key` → NotFound | ✅ AWS 측 삭제됨 (`key-0af741fc1b48c3691`). 로컬 `~/.ssh/upload-the-website-key.pem`은 `rm -f`로 직접 삭제 권장 |
 
 ## 해당 시 정리 항목 (이번 구성에서는 만들지 않음)
 
@@ -59,9 +59,9 @@ EC2 종료 ─▶ (루트 EBS 자동 삭제) ─▶ EIP 해제 ─▶ SG 삭제 
 
 ## 최종 확인
 
-- [ ] `./infra/cleanup.sh` 마지막 "잔여 리소스 확인" 출력이 모두 비어 있다.
-- [ ] 콘솔 **EC2 대시보드**(서울 리전)에서 인스턴스, 볼륨, 탄력적 IP, 보안 그룹(default 제외) 수가 0이다.
-- [ ] 콘솔 **VPC 대시보드**에서 기본 VPC 외에 남은 VPC가 없다.
+- [x] `./infra/cleanup.sh` 마지막 "잔여 리소스 확인" 출력이 모두 비어 있다 (EC2/EBS/EIP/NAT Gateway/IGW/VPC 전부 빈 목록).
+- [ ] 콘솔 **EC2 대시보드**(서울 리전)에서 인스턴스, 볼륨, 탄력적 IP, 보안 그룹(default 제외) 수가 0이다. *(스크립트 출력으로 확인됨. 콘솔에서 육안으로 한 번 더 확인하면 더 확실하다.)*
+- [ ] 콘솔 **VPC 대시보드**에서 기본 VPC 외에 남은 VPC가 없다. *(스크립트 출력으로 확인됨. 콘솔에서 육안으로 한 번 더 확인하면 더 확실하다.)*
 - [ ] (권장) **Billing and Cost Management → 청구서/Free Tier** 화면에서 예상 과금이 없다.
       (IAM 사용자로 보려면 관리자가 IAM 사용자의 결제 정보 접근을 활성화하고 `billing:View*` 읽기 권한을 따로 부여해야 한다.)
-- [ ] 증빙 스크린샷: `docs/screenshots/cleanup-ec2.png`, `docs/screenshots/cleanup-vpc.png`, (선택) `docs/screenshots/billing.png`
+- [x] 증빙 스크린샷: [`docs/screenshots/cleanup-terminal.png`](screenshots/cleanup-terminal.png) (`cleanup.sh` 전체 실행 로그 + 잔여 리소스 확인). (선택) `docs/screenshots/billing.png`
