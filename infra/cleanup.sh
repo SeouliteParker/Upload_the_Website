@@ -10,8 +10,15 @@ PROJECT="${PROJECT:-upload-the-website}"
 export AWS_REGION="${AWS_REGION:-ap-northeast-2}"
 export AWS_DEFAULT_REGION="$AWS_REGION"
 
+FAIL_COUNT=0
 log() { printf '\n\033[1;33m==> %s\033[0m\n' "$*"; }
-run() { echo "+ $*"; "$@" || echo "  (실패 또는 이미 삭제됨 — 계속 진행)"; }
+run() {
+  echo "+ $*"
+  if ! "$@"; then
+    echo "  (실패 또는 이미 삭제됨 — 계속 진행)"
+    FAIL_COUNT=$((FAIL_COUNT + 1))
+  fi
+}
 
 if [[ -f "$STATE_FILE" ]]; then
   # shellcheck disable=SC1090
@@ -77,14 +84,30 @@ fi
 
 log "9. 잔여 리소스 확인 (모두 비어 있어야 정리 완료)"
 F="Name=tag:Project,Values=$PROJECT"
-echo "- EC2 (terminated 제외):";   aws ec2 describe-instances --filters "$F" "Name=instance-state-name,Values=pending,running,stopping,stopped,shutting-down" --query 'Reservations[].Instances[].InstanceId' --output text
-echo "- EBS 볼륨 (프로젝트 태그):"; aws ec2 describe-volumes --filters "$F" --query 'Volumes[].[VolumeId,State]' --output text
-echo "- EBS 미사용(available) 볼륨 전체:"; aws ec2 describe-volumes --filters Name=status,Values=available --query 'Volumes[].[VolumeId,Size]' --output text
-echo "- Elastic IP 전체:";          aws ec2 describe-addresses --query 'Addresses[].[PublicIp,AllocationId]' --output text
-echo "- NAT Gateway (삭제 안 된 것):"; aws ec2 describe-nat-gateways --filter Name=state,Values=pending,available --query 'NatGateways[].NatGatewayId' --output text
-echo "- Internet Gateway:";         aws ec2 describe-internet-gateways --filters "$F" --query 'InternetGateways[].InternetGatewayId' --output text
-echo "- VPC:";                      aws ec2 describe-vpcs --filters "$F" --query 'Vpcs[].VpcId' --output text
+REMAIN_EC2=$(aws ec2 describe-instances --filters "$F" "Name=instance-state-name,Values=pending,running,stopping,stopped,shutting-down" --query 'Reservations[].Instances[].InstanceId' --output text)
+REMAIN_VOL=$(aws ec2 describe-volumes --filters "$F" --query 'Volumes[].[VolumeId,State]' --output text)
+REMAIN_VOL_AVAIL=$(aws ec2 describe-volumes --filters Name=status,Values=available --query 'Volumes[].[VolumeId,Size]' --output text)
+REMAIN_EIP=$(aws ec2 describe-addresses --query 'Addresses[].[PublicIp,AllocationId]' --output text)
+REMAIN_NAT=$(aws ec2 describe-nat-gateways --filter Name=state,Values=pending,available --query 'NatGateways[].NatGatewayId' --output text)
+REMAIN_IGW=$(aws ec2 describe-internet-gateways --filters "$F" --query 'InternetGateways[].InternetGatewayId' --output text)
+REMAIN_VPC=$(aws ec2 describe-vpcs --filters "$F" --query 'Vpcs[].VpcId' --output text)
+
+echo "- EC2 (terminated 제외): ${REMAIN_EC2:-(없음)}"
+echo "- EBS 볼륨 (프로젝트 태그): ${REMAIN_VOL:-(없음)}"
+echo "- EBS 미사용(available) 볼륨 전체: ${REMAIN_VOL_AVAIL:-(없음)}"
+echo "- Elastic IP 전체: ${REMAIN_EIP:-(없음)}"
+echo "- NAT Gateway (삭제 안 된 것): ${REMAIN_NAT:-(없음)}"
+echo "- Internet Gateway: ${REMAIN_IGW:-(없음)}"
+echo "- VPC: ${REMAIN_VPC:-(없음)}"
 
 rm -f "$STATE_FILE"
 echo
+
+REMAINING="${REMAIN_EC2}${REMAIN_VOL}${REMAIN_VOL_AVAIL}${REMAIN_EIP}${REMAIN_NAT}${REMAIN_IGW}${REMAIN_VPC}"
+if [[ -n "$REMAINING" || "$FAIL_COUNT" -gt 0 ]]; then
+  echo "정리 미완료: 삭제 실패 ${FAIL_COUNT}건, 잔여 리소스는 위 목록을 확인하세요."
+  echo "필요하면 스크립트를 다시 실행하거나 콘솔에서 직접 삭제한 뒤, docs/cleanup-checklist.md 에 실제 상태를 기록하세요."
+  exit 1
+fi
+
 echo "정리 완료. docs/cleanup-checklist.md 에 결과를 기록하고 Billing 대시보드를 확인하세요."

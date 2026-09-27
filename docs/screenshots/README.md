@@ -10,6 +10,7 @@
 | `security-group.png` | Security Group 인바운드 규칙(80: 0.0.0.0/0, 22: 내 IP/32) | ✅ |
 | `route-table.png` | Route Table 경로(`0.0.0.0/0 → igw`, `10.0.0.0/16 → local`) | ✅ |
 | `cleanup-terminal.png` | `infra/cleanup.sh` 최종 실행 로그, 잔여 리소스 확인 결과 전부 비어 있음 | ✅ |
+| `iam-permissions.png` | IAM → 사용자 `cloud-mission-user` → 권한 탭, `UploadTheWebsiteLeastPrivilege` 정책 하나만 연결됨(그룹/인라인 정책 없음). `infra/verify-iam-user.sh` 실행 결과로도 교차 확인 | 선택, 미실시 |
 | `docker-ps.png` | (보너스 2) `docker ps`에서 컨테이너 `Up` 상태 | 선택, 미실시 |
 | `docker-external.png` | (보너스 2) 외부에서 `/health` 호출 결과 | 선택, 미실시 |
 | `billing.png` | (선택) Billing 대시보드에서 과금 항목 없음 확인 | 선택, 미실시 |
