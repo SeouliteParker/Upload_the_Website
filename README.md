@@ -58,9 +58,17 @@ VPC로 네트워크를 격리하고, 보안 그룹과 IAM에 최소권한을 적
 적용 방법(관리 권한이 있는 계정에서 한 번만 한다. 이후 작업은 모두 이 IAM 사용자로 한다):
 
 1. IAM → 정책 → 정책 생성 → JSON 탭에 `infra/iam-policy.json`을 붙여 넣는다. 이름은 `UploadTheWebsiteLeastPrivilege`.
-2. IAM → 사용자 생성 → `cloud-mission-user`(콘솔 액세스 허용) → 위 정책**만** 직접 연결한다.
+2. IAM → 사용자 생성 → `cloud-mission-user`(콘솔 액세스 허용) → 위 정책**만** 직접 연결한다(그룹에 넣지 않는다. 인라인 정책도 추가하지 않는다).
 3. CLI를 쓰려면 해당 사용자의 액세스 키를 발급해 `aws configure`로 설정한다. 리전은 `ap-northeast-2`.
 4. 루트 계정은 MFA만 설정한 뒤 사용하지 않는다.
+
+**증빙(실제로 실습에 쓴 `cloud-mission-user`에 이 정책 하나만 붙어 있는지 확인)**: `cloud-mission-user`는 이 정책에 `iam:List*`/`iam:Get*` 권한이 없어 스스로를 조회할 수 없다(이 자체가 권한이 넓지 않다는 증거이기도 하다). 그래서 **관리자 자격 증명**으로 아래를 실행해 확인한다.
+
+```bash
+./infra/verify-iam-user.sh cloud-mission-user
+```
+
+`list-attached-user-policies`(관리형 정책 1개, `UploadTheWebsiteLeastPrivilege`), `list-user-policies`(인라인 정책 0개), `list-groups-for-user`(소속 그룹 0개), 그리고 연결된 정책 문서가 `infra/iam-policy.json`과 일치하는지를 각각 PASS/FAIL로 출력한다. 콘솔로도 IAM → 사용자 → `cloud-mission-user` → **권한** 탭에서 정책이 한 개뿐임을 눈으로 확인할 수 있다(스크린샷 증빙: 아래 [스크린샷](#스크린샷) 섹션의 `iam-permissions.png` 참고).
 
 ## 배포 방법
 
@@ -144,6 +152,8 @@ OK
 | **Route Table 경로**<br>[`route-table.png`](docs/screenshots/route-table.png)<br>`0.0.0.0/0 → igw-...`(활성), `10.0.0.0/16 → local` | **리소스 정리(cleanup.sh) 실행 로그**<br>[`cleanup-terminal.png`](docs/screenshots/cleanup-terminal.png)<br>EC2/EBS/EIP/NAT/IGW/VPC 잔여 리소스 확인 결과 |
 | ![route table](docs/screenshots/route-table.png) | ![cleanup terminal](docs/screenshots/cleanup-terminal.png) |
 
+IAM 최소권한 증빙(`iam-permissions.png`, 콘솔 IAM → 사용자 `cloud-mission-user` → 권한 탭에서 정책 1개만 연결된 화면)은 아직 촬영 전이다. 실제 배포 시 캡처해 [`docs/screenshots/`](docs/screenshots/)에 추가하고 이 표에 반영한다. 그 전까지는 아래 `./infra/verify-iam-user.sh` 실행 결과(텍스트 로그)로 대신 확인한다.
+
 ## 보너스 2: Docker 컨테이너 배포
 
 | 항목 | 값 |
@@ -186,6 +196,6 @@ EC2 종료, EIP 해제, SG, RT, IGW Detach/삭제, Subnet, VPC, Key Pair 순서�
 ```
 app/        index.html, nginx.conf (호스트 Nginx와 Docker가 같은 설정을 사용)
 docker/     Dockerfile (보너스 2)
-infra/      iam-policy.json, provision.sh, cleanup.sh, user-data-*.sh, verify-on-instance.sh
+infra/      iam-policy.json, provision.sh, cleanup.sh, user-data-*.sh, verify-on-instance.sh, verify-iam-user.sh
 docs/       architecture.(svg|png), troubleshooting.md, cleanup-checklist.md, screenshots/
 ```
