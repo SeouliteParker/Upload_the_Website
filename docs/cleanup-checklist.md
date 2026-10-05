@@ -45,7 +45,7 @@ EC2 종료 ─▶ (루트 EBS 자동 삭제) ─▶ EIP 해제 ─▶ SG 삭제 
 | NAT Gateway | `deleted` (IAM 정책에서 생성 자체를 Deny) | `aws ec2 describe-nat-gateways --filter Name=state,Values=pending,available` | ☐ 해당 없음 |
 | ELB/ALB | 없음 | 콘솔 EC2 → 로드 밸런서 | ☐ 해당 없음 |
 | RDS | 없음 | 콘솔 RDS → 데이터베이스(IAM 권한 없음) | ☐ 해당 없음 |
-| EBS 스냅샷/AMI | 직접 만든 것 없음 | `aws ec2 describe-snapshots --owner-ids self` | ☐ |
+| EBS 스냅샷/AMI | 직접 만든 것 없음 | `aws ec2 describe-snapshots --owner-ids self` |✅ 스냅샷 0개, AMI 0개 (2026-10-05 콘솔 확인, 서울 리전·내 소유)|
 
 ## 과금 관점 메모
 
