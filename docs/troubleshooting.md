@@ -5,17 +5,17 @@
 | # | 구분 | 한 줄 요약 | 상태 |
 |---|------|-----------|------|
 | 1 | 애플리케이션 | 컨테이너 기동 직후 Nginx 종료: `socket() [::]:80 failed (97)` | 해결. 실제 로그 기반 |
-| 2 | 네트워크(라우팅) | EC2는 running인데 외부에서 `http://<퍼블릭IP>` 타임아웃 | 재현 절차와 판별법 정리. 배포 시 결과 기입 |
-| 3 | 보안 그룹 | 어제 되던 SSH가 오늘 `Operation timed out` | 재현 절차와 판별법 정리. 배포 시 결과 기입 |
-| 4 | IAM | `RunInstances` 호출 시 `UnauthorizedOperation` | 재현 절차와 판별법 정리. 배포 시 결과 기입 |
+| 2 | 네트워크(라우팅) | EC2는 running인데 외부에서 `http://<퍼블릭IP>` 타임아웃 | 재현·판별 가이드 (미실행) |
+| 3 | 보안 그룹 | 어제 되던 SSH가 오늘 `Operation timed out` | 재현·판별 가이드 (미실행) |
+| 4 | IAM | `RunInstances` 호출 시 `UnauthorizedOperation` | 재현·판별 가이드 (미실행) |
 | 5 | 배포 스크립트(Windows) | `RunInstances` 호출 시 `Unable to load paramfile file:///tmp/...: No such file or directory` | 해결. 실제 로그 기반 |
 | 6 | 배포 스크립트(키 페어) | 재배포 시 `InvalidKeyPair.NotFound` | 해결. 실제 로그 기반 |
 | 7 | SSH(Windows) | `Load key "...pem": invalid format` → `Permission denied (publickey)` | 해결. 실제 로그 기반 |
 | 8 | 배포 스크립트(Windows, Git 설정) | 원격 점검 스크립트가 `$'\r': command not found` / `syntax error` | 해결. 실제 로그 기반 |
 
 > 1, 5, 6, 7, 8번은 이 저장소를 실제로 배포하면서 **실제로 발생한** 오류이고, 로그와 조치를 그대로 옮겼다.
-> 2~4번은 이 구성에서 가장 흔히 겪는 통신/권한 오류다. 원인을 일부러 만들어 재현하는 절차와 로그로 판별하는 방법을 적어 두었다.
-> 실제 AWS에서 재현했을 때 나온 출력과 스크린샷은 각 건의 `결과` 칸에 붙인다.
+> 2~4번은 **실제로 발생하지 않은** 예상 오류다. 이 구성에서 가장 흔히 겪는 통신/권한 오류를 골라, 원인을 일부러 만들어 재현하는 절차와 로그로 판별하는 방법을 정리한 **가이드**다.
+> 실습 중 재현하지 않았으므로 `결과` 칸에는 "기대 결과"만 적었다. 실제 출력으로 오해하지 않도록 구분해 둔다.
 
 ---
 
@@ -61,7 +61,7 @@ OK
 
 ---
 
-## 2. 인스턴스는 running인데 외부에서 웹 접속이 타임아웃됨 (라우팅 누락)
+## 2. [가이드] 인스턴스는 running인데 외부에서 웹 접속이 타임아웃됨 (라우팅 누락)
 
 | 항목 | 내용 |
 |------|------|
@@ -69,7 +69,7 @@ OK
 | **원인 가설** | ① SG 인바운드 80이 없음 ② Nginx가 떠 있지 않음 ③ 서브넷의 라우트 테이블에 `0.0.0.0/0 → IGW`가 없음(서브넷이 **기본(main) RT**에 연결됨) ④ 인스턴스에 퍼블릭 IP가 없음 |
 | **검증 방법** | 안쪽에서 바깥쪽 순서로 좁힌다.<br>② `aws ec2 get-console-output --instance-id <id> --latest`로 cloud-init 로그에 `localhost / -> 200`이 있는지 본다(SSH가 안 될 때도 확인할 수 있다).<br>① `aws ec2 describe-security-group-rules --filters Name=group-id,Values=<sg>`<br>④ `aws ec2 describe-instances --query 'Reservations[].Instances[].PublicIpAddress'`<br>③ `aws ec2 describe-route-tables --filters Name=association.subnet-id,Values=<subnet>`. 결과가 비어 있으면 서브넷이 main RT를 쓰고 있다는 뜻이다. main RT에는 `local` 경로만 있다.<br>보조: `curl https://example.com`을 인스턴스 안에서 실행했을 때 아웃바운드도 실패하면 ③일 가능성이 높다(응답 패킷이 돌아올 경로가 없다). |
 | **조치 내용** | 퍼블릭 RT에 `create-route --destination-cidr-block 0.0.0.0/0 --gateway-id <igw>`를 추가하고 `associate-route-table --subnet-id <subnet>`으로 서브넷에 명시적으로 연결한다. |
-| **결과** | _(배포 시 기입: 조치 전 `describe-route-tables` 출력, 조치 후 `curl -i http://<IP>/health` 200 스크린샷)_ |
+| **결과(기대)** | _미실행._ 조치 후 `curl -i http://<IP>/health`가 `200 OK` / `OK`를 반환해야 한다. |
 | **재발 방지** | `provision.sh` 4단계에서 경로 생성과 서브넷 연결을 한 번에 하고, 생성 직후 라우트 테이블을 표로 출력해 `0.0.0.0/0 → igw-… active`를 눈으로 확인한다. 배포 체크리스트에 "퍼블릭 서브넷 = IGW 경로가 있는 RT에 연결된 서브넷"을 추가한다. |
 
 재현 방법: 아래 명령으로 서브넷 연결을 끊어 main RT로 되돌리면 같은 증상이 나타난다. 확인한 뒤 다시 연결한다.
@@ -82,7 +82,7 @@ aws ec2 associate-route-table --route-table-id "$RTB_ID" --subnet-id "$SUBNET_ID
 
 ---
 
-## 3. 어제 되던 SSH가 오늘 타임아웃됨 (SG 소스 IP 불일치)
+## 3. [가이드] 어제 되던 SSH가 오늘 타임아웃됨 (SG 소스 IP 불일치)
 
 | 항목 | 내용 |
 |------|------|
@@ -90,12 +90,12 @@ aws ec2 associate-route-table --route-table-id "$RTB_ID" --subnet-id "$SUBNET_ID
 | **원인 가설** | ① 인스턴스 장애 ② 키 파일 문제 ③ 내 공인 IP가 바뀌어서(다른 Wi-Fi, 통신사 재할당) SG 22번 규칙의 `/32` 소스와 맞지 않음 |
 | **검증 방법** | HTTP가 200이므로 ①(인스턴스와 네트워크 경로)은 기각한다. 키 문제면 `Permission denied (publickey)`가 **즉시** 돌아와야 한다. **타임아웃**은 패킷이 필터에서 버려졌다는 신호이므로 ②도 기각한다. `curl https://checkip.amazonaws.com`으로 현재 IP를 SG 규칙의 CIDR과 비교해 불일치를 확인한다. 증거가 더 필요하면 VPC Flow Logs에서 `dstport=22 action=REJECT` 레코드를 찾는다. |
 | **조치 내용** | 기존 22번 규칙을 `revoke`한 뒤 새 IP로 `authorize-security-group-ingress --protocol tcp --port 22 --cidr <새IP>/32`를 실행한다. **0.0.0.0/0으로 여는 것은 금지.** |
-| **결과** | _(배포 시 기입: 규칙 변경 전후 SG 화면, SSH 접속 성공 화면)_ |
+| **결과(기대)** | _미실행._ 새 IP로 규칙을 바꾸면 SSH가 즉시 접속되고, HTTP 80은 영향 없이 계속 200이어야 한다. |
 | **재발 방지** | 증상의 종류로 원인 계층을 먼저 가른다. 타임아웃이면 네트워크/필터, 즉시 거부면 인증/서비스다. `provision.sh`는 실행할 때마다 현재 IP를 자동으로 조회한다. 작업이 끝나면 22번 규칙을 삭제하는 것도 방법이다. |
 
 ---
 
-## 4. `RunInstances` 호출 시 `UnauthorizedOperation` (IAM 최소권한)
+## 4. [가이드] `RunInstances` 호출 시 `UnauthorizedOperation` (IAM 최소권한)
 
 | 항목 | 내용 |
 |------|------|
@@ -103,7 +103,7 @@ aws ec2 associate-route-table --route-table-id "$RTB_ID" --subnet-id "$SUBNET_ID
 | **원인 가설** | ① 리전이 서울이 아님(`aws:RequestedRegion` 조건 불일치) ② 인스턴스 타입이 t2/t3.micro가 아님(명시적 Deny) ③ 루트 볼륨이 10GiB를 넘음(명시적 Deny) ④ AMI 조회용 `ssm:GetParameters` 권한 없음 |
 | **검증 방법** | 인코딩된 메시지를 디코딩한다(정책에 `sts:DecodeAuthorizationMessage`를 허용해 둔 이유).<br>`aws sts decode-authorization-message --encoded-message <msg> --query DecodedMessage --output text \| python3 -m json.tool`<br>출력의 `matchedStatements`에 `DenyNonFreeTierInstanceTypes`처럼 **어느 Statement가 거부했는지**와 `context.action`, `resource`가 나온다. |
 | **조치 내용** | 요청을 정책에 맞춘다(예: `INSTANCE_TYPE=t3.micro`, 볼륨 8GiB, `AWS_REGION=ap-northeast-2`). **권한을 넓히는 것은 마지막 수단**이고, 그때도 필요한 Action 하나만 추가한다. |
-| **결과** | _(배포 시 기입: 디코딩된 메시지 일부와 재실행 성공 출력)_ |
+| **결과(기대)** | _미실행._ 디코딩 결과에 거부한 Statement(예: `DenyNonFreeTierInstanceTypes`)가 나오고, 정책 범위로 요청을 고치면 `RunInstances`가 성공해야 한다. |
 | **재발 방지** | 정책의 Deny 조건을 README에 명시한다. 스크립트 기본값을 정책과 일치시켜 두었다(t3.micro, 8GiB, ap-northeast-2). |
 
 재현 방법:

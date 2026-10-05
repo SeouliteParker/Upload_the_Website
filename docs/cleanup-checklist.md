@@ -62,6 +62,6 @@ EC2 종료 ─▶ (루트 EBS 자동 삭제) ─▶ EIP 해제 ─▶ SG 삭제 
 - [x] `./infra/cleanup.sh` 마지막 "잔여 리소스 확인" 출력이 모두 비어 있다 (EC2/EBS/EIP/NAT Gateway/IGW/VPC 전부 빈 목록).
 - [ ] 콘솔 **EC2 대시보드**(서울 리전)에서 인스턴스, 볼륨, 탄력적 IP, 보안 그룹(default 제외) 수가 0이다. *(스크립트 출력으로 확인됨. 콘솔에서 육안으로 한 번 더 확인하면 더 확실하다.)*
 - [ ] 콘솔 **VPC 대시보드**에서 기본 VPC 외에 남은 VPC가 없다. *(스크립트 출력으로 확인됨. 콘솔에서 육안으로 한 번 더 확인하면 더 확실하다.)*
-- [ ] (권장) **Billing and Cost Management → 청구서/Free Tier** 화면에서 예상 과금이 없다.
+- [x] (권장) **Billing and Cost Management → 청구서** 화면에서 예상 총합계 **USD 0.00** 확인 (2026-10-05, 루트 계정으로 조회 — `cloud-mission-user`에는 결제 조회 권한을 주지 않았다).
       (IAM 사용자로 보려면 관리자가 IAM 사용자의 결제 정보 접근을 활성화하고 `billing:View*` 읽기 권한을 따로 부여해야 한다.)
-- [x] 증빙 스크린샷: [`docs/screenshots/cleanup-terminal.png`](screenshots/cleanup-terminal.png) (`cleanup.sh` 전체 실행 로그 + 잔여 리소스 확인). (선택) `docs/screenshots/billing.png`
+- [x] 증빙 스크린샷: [`docs/screenshots/cleanup-terminal.png`](screenshots/cleanup-terminal.png) (`cleanup.sh` 전체 실행 로그 + 잔여 리소스 확인). [`docs/screenshots/billing.png`](screenshots/billing.png) (Billing 예상 요금 0원)
